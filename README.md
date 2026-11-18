@@ -8,7 +8,7 @@ Three packages:
 
 | Package | What it does |
 |---------|--------------|
-| [`chain`](./chain) | Builds, signs and broadcasts one **unordered** gameplay transaction over gRPC (`SIGN_MODE_DIRECT`, gas 250k, no fee). Looks up an account number. Mirrors the TS SDK's `performActionSync` (poker-vm#2619) and pokerchain's `cmd/perform-action`. |
+| [`chain`](./chain) | Builds, signs and broadcasts one **unordered** gameplay transaction over gRPC (`SIGN_MODE_DIRECT`, gas 250k, no fee). Looks up an account number. Public reads: balance, game list, public game state, a player's games. Mirrors the TS SDK's `performActionSync` (poker-vm#2619) and pokerchain's `cmd/perform-action`. |
 | [`wire`](./wire) | Hand-rolled protobuf encode/decode for the handful of messages used (`MsgPerformAction`, `MsgJoinGame`, `MsgLeaveGame`, `MsgTopUp`, `AccountInfo`, `BroadcastTx`). Every encoder is checked byte-for-byte against cosmos-sdk's own output by golden vectors in `wire/testdata`. |
 | [`keys`](./keys) | secp256k1 key generation, bech32 address derivation (`Address`), transaction signing (`Sign64`), EIP-191 personal-sign (`PersonalSign`), and an optional KEK-sealed keystore (`Vault`) for custodial use. |
 
@@ -27,9 +27,21 @@ import (
 )
 
 c := chain.New("127.0.0.1:9090", "pokerchain-1", false /* useTLS */)
-num, err := c.AccountNumber(ctx, addr)          // gRPC read
-txHash, err := c.Broadcast(ctx, priv, addr, num, msgAny) // sign + broadcast
+
+// Reads (public, no signature)
+amount, err := c.Balance(ctx, addr, "usdc")     // micro-denom integer as a string
+games, err := c.ListGames(ctx)                  // JSON string
+state, err := c.GameState(ctx, gameID)          // public projection, JSON string
+mine, err := c.PlayerGames(ctx, addr)           // JSON string
+
+// Write (sign + broadcast)
+num, err := c.AccountNumber(ctx, addr)
+txHash, err := c.Broadcast(ctx, priv, addr, num, msgAny)
 ```
+
+The chain exposes no single gRPC transaction-history query (a wallet's recent
+transactions are assembled from `tx.event`-indexed queries or the indexer REST),
+so that read is intentionally not here yet.
 
 ## Test
 
